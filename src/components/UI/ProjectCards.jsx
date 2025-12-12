@@ -1,0 +1,303 @@
+import PropTypes from "prop-types"
+import { useState, useRef } from "react"
+import { Icon } from "@iconify/react"
+import { Link } from "react-router-dom"
+
+const ProjectCards = ({ items = [], isDark = false, t, className = "" }) => {
+  // columns is intentionally ignored to follow the stacked style used in Blog posts
+  // Track flipped cards (by index)
+  const [flipped, setFlipped] = useState(() => new Set())
+  // Track fading text (hidden) during phase transitions
+  const [fading, setFading] = useState(() => new Set())
+  // Refs to measure positions for fluid slide
+  const rowRefs = useRef({})
+  const iconRefs = useRef({})
+  // Per-card slide state
+  const [sliding, setSliding] = useState(() => new Set())
+  const [offsets, setOffsets] = useState(() => ({})) // px
+  // Single active card and animation guard
+  const [activeIndex, setActiveIndex] = useState(null)
+  const [animating, setAnimating] = useState(false)
+
+  const startFade = (i) => setFading(prev => new Set(prev).add(i))
+  const stopFade = (i) => setFading(prev => { const n = new Set(prev); n.delete(i); return n })
+  // No slide/wobble: we removed icon translation animation entirely
+
+  const FADE_MS = 10
+  const SLIDE_MS = 350
+  // Separate fade durations for open (fade-in) and close (fade-out)
+  const OPEN_FADE_MS = 100
+  const CLOSE_FADE_MS = 100
+
+  const computeTravel = (idx) => {
+    const row = rowRefs.current[idx]
+    const ico = iconRefs.current[idx]
+    if (!row || !ico) return null
+    const r = row.getBoundingClientRect()
+    const c = ico.getBoundingClientRect()
+    return Math.max(0, r.width - c.width - 32)
+  }
+
+  const openCard = (idx) => {
+    const baseReversed = true
+    setAnimating(true)
+    // Start fading title and slide immediately for a snappier feel
+    startFade(idx)
+    const travel = computeTravel(idx)
+    try {
+      if (travel != null) {
+        const dir = -1
+        setOffsets(prev => ({ ...prev, [idx]: dir * travel }))
+        setSliding(prev => new Set(prev).add(idx))
+        setTimeout(() => {
+          setFlipped(prev => { const n = new Set(prev); n.add(idx); return n })
+          // Keep title hidden while flipped; no stopFade here
+          setSliding(prev => { const n = new Set(prev); n.delete(idx); return n })
+          setOffsets(prev => ({ ...prev, [idx]: 0 }))
+          setActiveIndex(idx)
+          setAnimating(false)
+          stopFade(idx)
+        }, SLIDE_MS)
+      } else {
+        setFlipped(prev => { const n = new Set(prev); n.add(idx); return n })
+        setActiveIndex(idx)
+        setAnimating(false)
+        stopFade(idx)
+      }
+    } catch (_) {
+      setFlipped(prev => { const n = new Set(prev); n.add(idx); return n })
+      setActiveIndex(idx)
+      setAnimating(false)
+      stopFade(idx)
+    }
+  }
+
+  const closeCard = (idx, cb) => {
+    const baseReversed = true
+    // Start fading and sliding back immediately
+    startFade(idx)
+    const travel = computeTravel(idx)
+    try {
+      if (travel != null) {
+        const dir = 1
+        // Fade content first, then start the slide after CLOSE_FADE_MS
+        setSliding(prev => new Set(prev).add(idx))
+        setTimeout(() => {
+          setOffsets(prev => ({ ...prev, [idx]: dir * travel }))
+          setTimeout(() => {
+            setSliding(prev => { const n = new Set(prev); n.delete(idx); return n })
+            setOffsets(prev => ({ ...prev, [idx]: 0 }))
+            setFlipped(prev => { const n = new Set(prev); n.delete(idx); return n })
+            setTimeout(() => stopFade(idx), OPEN_FADE_MS)
+            if (typeof cb === 'function') cb()
+          }, SLIDE_MS)
+        }, CLOSE_FADE_MS)
+      } else {
+        setFlipped(prev => { const n = new Set(prev); n.delete(idx); return n })
+        setTimeout(() => stopFade(idx), FADE_MS)
+        if (typeof cb === 'function') cb()
+      }
+    } catch (_) {
+      setFlipped(prev => { const n = new Set(prev); n.delete(idx); return n })
+      setTimeout(() => stopFade(idx), FADE_MS)
+      if (typeof cb === 'function') cb()
+    }
+  }
+
+  const handleClick = (i) => {
+    if (animating) return
+    const isOpen = flipped.has(i)
+    if (isOpen) {
+      // Close the same card
+      setAnimating(true)
+      closeCard(i, () => {
+        // Limpiar solo si aún corresponde a esta card
+        setActiveIndex(curr => (curr === i ? null : curr))
+        setAnimating(false)
+      })
+      return
+    }
+    // If another is active, close it first, then open current (parallel handoff, no delay)
+    if (activeIndex !== null && activeIndex !== i) {
+      setAnimating(true)
+      const prev = activeIndex
+      // Establecer intención actual de inmediato al nuevo índice
+      setActiveIndex(i)
+      // Cerrar la anterior y limpiar solo si aún era la activa
+      closeCard(prev, () => { setActiveIndex(curr => (curr === prev ? null : curr)) })
+      openCard(i)
+      return
+    }
+    // No había activa: abrir directamente y fijar intención
+    setActiveIndex(i)
+    openCard(i)
+  }
+
+  return (
+    <div className={["relative space-y-6", className].join(" ")}>
+      {items.map((item, idx) => {
+        const baseReversed = true
+        const isFlipped = flipped.has(idx)
+        const isReversed = baseReversed !== isFlipped
+        return (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => handleClick(idx)}
+            className="relative block w-full text-left focus:outline-none"
+            aria-pressed={isFlipped ? "true" : "false"}
+          >
+            <div ref={el => (rowRefs.current[idx] = el)} className={`rounded-2xl overflow-hidden transition-colors ${isDark ? "bg-primary text-white" : "bg-secondary text-black"}`}>
+              {/* Header/content row as 3-column grid to center title optically */}
+              <div className="w-full h-36 px-5 grid items-center gap-4 grid-cols-[auto_1fr_auto]">
+                {/* Left slot: icon or spacer depending on side */}
+                {isReversed ? (
+                  <div className="h-32 w-32 shrink-0" aria-hidden></div>
+                ) : (
+                  <div
+                    ref={el => (iconRefs.current[idx] = el)}
+                    className="rounded-md bg-current/10 shrink-0 overflow-hidden flex items-center justify-center"
+                    style={{ transform: offsets[idx] ? `translateX(${offsets[idx]}px)` : 'translateX(0px)', transition: sliding.has(idx) ? 'transform 280ms ease-out' : 'none' }}
+                  >
+                    {item.icon ? (
+                      <Icon
+                        icon={item.icon}
+                        className={`text-7xl md:text-9xl ${item.icon?.startsWith('custom:')
+                            ? (isDark ? 'filter invert-[12%]' : 'filter invert-[88%]')
+                            : (isDark ? 'text-feather' : 'text-primary')
+                          }`}
+                      />
+                    ) : (
+                      <span className="text-xs font-specs opacity-70">PRJ</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Center slot: centered title when closed; left-aligned details when open */}
+                <div className={`flex min-w-0 w-full flex-col justify-center ${isFlipped ? 'items-start text-left' : 'items-center text-center'}`}>
+                  {!isFlipped ? (
+                    <h3 className={`font-specs text-4xl md:text-5xl leading-tight truncate transition-opacity duration-200 ${(!isFlipped && !fading.has(idx)) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                      {item.title}
+                    </h3>
+                  ) : (
+                    <div
+                      className={`w-full transition-opacity ${fading.has(idx) ? 'opacity-0' : 'opacity-100'}`}
+                      style={{ transitionDuration: `${fading.has(idx) ? CLOSE_FADE_MS : OPEN_FADE_MS}ms` }}
+                    >
+                      {item.description && (
+                        <p className="m-0 mt-2 font-sans text-lg md:text-xl opacity-90">
+                          {item.description}
+                        </p>
+                      )}
+                      {item.tecnologies && (
+                        <p className="mb-1 mt-1 font-sans text-lg md:text-xl opacity-80">
+                          <span className="font-semibold">
+                            {t?.aboutPage?.projectCards?.tecnologies || 'Tecnologías'}{" : "}
+                          </span>
+                          {item.tecnologies}
+                        </p>
+                      )}
+                      {item.access && (
+                        <a
+                          href={item.access}
+                          target="_blank"
+                          role="button"
+                          onClick={(e) => { e.stopPropagation() }}
+                          onMouseDown={(e) => { e.stopPropagation() }}
+                          className={`relative isolate overflow-hidden block w-fit self-start px-3 py-2 rounded-lg text-sm font-bold mt-0
+                            transition-colors duration-300 font-sans
+                            before:content-[''] before:absolute before:inset-0 before:rounded-full before:z-0
+                            before:scale-0 hover:before:scale-150 before:transition-transform before:duration-300 before:ease-out before:origin-[var(--ox)_var(--oy)]
+                            ${isDark ? 'bg-void text-white hover:text-black before:bg-cloud' : 'bg-cloud text-black hover:text-white before:bg-primary'}`}
+                          onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const ox = ((e.clientX - rect.left) / rect.width) * 100
+                            const oy = ((e.clientY - rect.top) / rect.height) * 100
+                            e.currentTarget.style.setProperty('--ox', `${ox}%`)
+                            e.currentTarget.style.setProperty('--oy', `${oy}%`)
+                          }}
+                        >
+                          <span className="relative z-10">
+                            {t?.aboutPage?.projectCards?.visit || 'Visitar ↗'}
+                          </span>
+                        </a>
+                      )}
+                      {item.link && (
+                        <Link
+                          to={item.link}
+                          rel="noopener noreferrer"
+                          role="button"
+                          onClick={(e) => { e.stopPropagation() }}
+                          onMouseDown={(e) => { e.stopPropagation() }}
+                          className={`relative isolate overflow-hidden block w-fit self-start px-3 py-2 rounded-lg text-sm font-bold mt-0
+                            transition-colors duration-300 font-sans
+                            before:content-[''] before:absolute before:inset-0 before:rounded-full before:z-0
+                            before:scale-0 hover:before:scale-150 before:transition-transform before:duration-300 before:ease-out before:origin-[var(--ox)_var(--oy)]
+                            ${isDark ? 'bg-void text-white hover:text-black before:bg-cloud' : 'bg-cloud text-black hover:text-white before:bg-primary'}`}
+                          onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const ox = ((e.clientX - rect.left) / rect.width) * 100
+                            const oy = ((e.clientY - rect.top) / rect.height) * 100
+                            e.currentTarget.style.setProperty('--ox', `${ox}%`)
+                            e.currentTarget.style.setProperty('--oy', `${oy}%`)
+                          }}
+                        >
+                          <span className="relative z-10">
+                            {t?.aboutPage?.projectCards?.visit || 'Visitar ↗'}
+                            </span>
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right slot: icon or spacer depending on side */}
+                {isReversed ? (
+                  <div
+                    ref={el => (iconRefs.current[idx] = el)}
+                    className="rounded-md shrink-0 overflow-hidden flex items-center justify-center"
+                    style={{ transform: offsets[idx] ? `translateX(${offsets[idx]}px)` : 'translateX(0px)', transition: sliding.has(idx) ? 'transform 280ms ease-out' : 'none' }}
+                  >
+                    {item.icon ? (
+                      <Icon
+                        icon={item.icon}
+                        className={`text-7xl md:text-9xl ${item.icon?.startsWith('custom:')
+                          ? (isDark ? 'filter invert-[12%]' : 'filter invert-[88%]')
+                          : (isDark ? 'text-cloud' : 'text-primary')
+                          }`}
+                      />
+                    ) : (
+                      <span className="text-xs font-specs opacity-70">PRJ</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-32 w-32 shrink-0" aria-hidden></div>
+                )}
+              </div>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+ProjectCards.propTypes = {
+  items: PropTypes.arrayOf(PropTypes.shape({
+    title: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    icon: PropTypes.string,
+    href: PropTypes.string,
+    target: PropTypes.string,
+    rel: PropTypes.string,
+  })).isRequired,
+  isDark: PropTypes.bool,
+  columns: PropTypes.shape({
+    base: PropTypes.number,
+    md: PropTypes.number,
+    lg: PropTypes.number,
+  }),
+  className: PropTypes.string,
+}
+
+export default ProjectCards

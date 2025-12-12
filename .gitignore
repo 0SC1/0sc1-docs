@@ -1,0 +1,53 @@
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist-ssr
+dist
+build
+.cache
+*.local
+
+#
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea22:19:51.403	Initializing build environment...
+22:19:51.403	Initializing build environment...
+22:19:53.366	Success: Finished initializing build environment
+22:19:53.761	Cloning repository...
+22:19:55.211	Detected the following tools from environment: npm@10.9.2, nodejs@22.16.0
+22:19:55.212	Restoring from dependencies cache
+22:19:55.214	Restoring from build output cache
+22:19:55.575	Installing project dependencies: npm clean-install --progress=false
+22:20:09.011
+22:20:09.012	added 564 packages, and audited 565 packages in 10s
+22:20:09.012
+22:20:09.013	270 packages are looking for funding
+22:20:09.013	  run `npm fund` for details
+22:20:09.080
+22:20:09.080	7 vulnerabilities (2 low, 2 moderate, 3 high)
+22:20:09.080
+22:20:09.080	To address all issues, run:
+22:20:09.080	  npm audit fix
+22:20:09.080
+22:20:09.080	Run `npm audit` for details.
+22:20:09.360	Executing user build command: npm run build
+22:20:09.591
+22:20:09.591	> 0SC1-docs@0.0.0 build
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

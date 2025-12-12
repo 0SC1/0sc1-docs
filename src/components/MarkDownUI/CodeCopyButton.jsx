@@ -1,0 +1,104 @@
+import { useEffect, useRef } from "react"
+import { Icon } from "@iconify/react"
+import { createRoot } from "react-dom/client"
+
+const CodeCopyButton = ({ t }) => {
+  const tRef = useRef(t)
+
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
+
+  useEffect(() => {
+    const addCopyButtons = () => {
+      const codeBlocks = document.querySelectorAll('[data-rehype-pretty-code-figure]:not([data-copy-added])')
+
+      codeBlocks.forEach((figure) => {
+        const codeEl = figure.querySelector('pre code')
+        // Skip figures that don't actually contain a fenced code block
+        if (!codeEl) return
+
+        figure.setAttribute('data-copy-added', 'true')
+        figure.style.position = 'relative'
+
+        const button = document.createElement('button')
+        button.className = 'absolute top-3 right-3 z-10 p-1 rounded-full bg-primary text-secondary dark:bg-secondary dark:text-primary'
+        button.type = 'button'
+        button.setAttribute('aria-label', tRef.current?.md?.codeCopyButton?.copy || 'Copiar código')
+
+        // Render Iconify icon via React DOM
+        const root = createRoot(button)
+        const renderIcon = (iconName) => {
+          root.render(
+            <Icon icon={iconName} width={24} height={24} />
+          )
+        }
+        // initial icon
+        renderIcon('lets-icons:copy-light')
+
+        // Floating label for hover/click state
+        let copied = false
+        const label = document.createElement('span')
+        label.textContent = tRef.current?.md?.codeCopyButton?.copy || 'Copiar'
+        label.className = 'absolute pr-10 right-3 pt-1 top-2 text-md font-mono text-primary dark:text-secondary bg-transparent select-none opacity-0 transition-opacity duration-150 pointer-events-none'
+        figure.appendChild(label)
+
+        const showLabel = (text) => {
+          label.textContent = text
+          label.classList.remove('opacity-0')
+          label.classList.add('opacity-100')
+        }
+
+        const hideLabel = () => {
+          if (!copied) {
+            label.classList.remove('opacity-100')
+            label.classList.add('opacity-0')
+          }
+        }
+
+        button.addEventListener('mouseenter', () => {
+          if (!copied) {
+            const txt = tRef.current?.md?.codeCopyButton?.copy || 'Copiar'
+            showLabel(txt)
+          }
+        })
+        button.addEventListener('mouseleave', () => {
+          hideLabel()
+        })
+
+        button.onclick = async () => {
+          const code = codeEl?.textContent
+          if (code) {
+            try {
+              await navigator.clipboard.writeText(code)
+              renderIcon('heroicons-outline:check')
+              copied = true
+              const txt = tRef.current?.md?.codeCopyButton?.copied || 'Copiado'
+              showLabel(txt)
+              setTimeout(() => {
+                renderIcon('lets-icons:copy-light')
+                copied = false
+                hideLabel()
+              }, 2000)
+            } catch (err) {
+              console.error('Copy failed:', err)
+            }
+          }
+        }
+
+        figure.appendChild(button)
+      })
+    }
+
+    addCopyButtons()
+
+    const observer = new MutationObserver(addCopyButtons)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
+  }, [])
+
+  return null
+}
+
+export default CodeCopyButton
